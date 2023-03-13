@@ -23,7 +23,7 @@ def create_json(x,y,z):
         ]
     }
     print(sounds_dict)
-    with open('json_data.json', 'w') as outfile:
+    with open(os.environ.get('PATH_TO_JSON_FILE'), 'w') as outfile:
         json.dump(sounds_dict, outfile)
 
 def process(msg):
