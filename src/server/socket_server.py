@@ -33,7 +33,7 @@ def process(msg):
     try:
         data = json.loads(msg)
         for source in data['src']:
-            if  active_source_id == '':
+            if  active_source['id'] == '':
                 if source['id'] != 0:
                     active_source = source
                     break
