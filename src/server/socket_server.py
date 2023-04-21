@@ -11,9 +11,8 @@ BUFFER_SIZE = 296
 remainingTrack = ''
 stream = ''
 string = ''
-active_source_id = ''
 
-def create_json(x,y,z):
+def create_json(x=None,y=None,z=None):
     sounds_dict = {
         "sounds": [
             {
@@ -28,27 +27,33 @@ def create_json(x,y,z):
 
 def process(msg):
     data = ''
-    active_source_id = ''
     
     try:
         data = json.loads(msg)
         for source in data['src']:
-            if  active_source['id'] == '':
+            if not active_source:
                 if source['id'] != 0:
                     active_source = source
                     break
-            
-            elif source['id'] == active_source['id']:
-                continue
+                
+            elif active_source['activity'] > 0.2:
+                if source['id'] == active_source['id']:
+                    continue
 
-            elif source['id'] is not active_source['id']:
-                if source['activity'] > active_source['activity']:
-                    active_source = source
-        x = active_source['x']
-        y = active_source['y']
-        z = active_source['z']
-
+                elif source['id'] is not active_source['id']:
+                    if source['activity'] > active_source['activity']:
+                        active_source = source
+                
+                x = active_source['x']
+                y = active_source['y']
+                z = active_source['z']
+                
         create_json(x,y,z)
+                
+                
+        
+
+        
     except:
         print("ERROR:JSON LOADS")
 
