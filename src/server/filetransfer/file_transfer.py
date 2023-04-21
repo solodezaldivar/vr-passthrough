@@ -13,4 +13,11 @@ def get_file():
     except Exception as e:
         return str(e)
 
-    
+
+@app.get("/objectsFile/")
+def get_objects():
+    try:
+        return send_file(os.environ.get('PATH_TO_JSON_FILE'))
+    except Exception as e:
+        return str(e)
+
