@@ -22,7 +22,7 @@ def create_json(x,y,z):
             }
         ]
     }
-    print(sounds_dict)
+    #print(sounds_dict)
     with open(os.environ.get('PATH_TO_JSON_FILE'), 'w') as outfile:
         json.dump(sounds_dict, outfile)
 
@@ -74,7 +74,7 @@ def remaining(strs):
 def server():
     remainingTrack = ''
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server_socket.bind((HOST,PORT))
+    server_socket.bind((HOST,9000))
     server_socket.listen(5)
 
     print("Listening on %s:%s..." % (HOST, str(PORT)))
