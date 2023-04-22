@@ -1,6 +1,6 @@
 import os
 import socket
-import json 
+import json
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -11,70 +11,71 @@ BUFFER_SIZE = 296
 remainingTrack = ''
 stream = ''
 string = ''
+active_source = None
 
-def create_json(x=None,y=None,z=None):
+
+def create_json(x=None, y=None, z=None):
     sounds_dict = {
         "sounds": [
             {
-                "direction": {"x": x,"y": y,"z": z},
-            "type":"VOICE"
+                "direction": {"x": x, "y": y, "z": z},
+                "type": "VOICE"
             }
         ]
     }
     print(sounds_dict)
     with open(os.environ.get('PATH_TO_JSON_FILE'), 'w') as outfile:
         json.dump(sounds_dict, outfile)
-
+        
 def process(msg):
     data = ''
-    
+    global active_source
     try:
         data = json.loads(msg)
         for source in data['src']:
-            if not active_source:
-                if source['id'] != 0:
+            if source['activity'] > 0.2:
+                if not active_source:
+                    if source['id'] != 0:
+                        active_source = source            
+
+                elif source['id'] == active_source['id']:
                     active_source = source
-                    break
-                
-            elif active_source['activity'] > 0.2:
-                if source['id'] == active_source['id']:
-                    continue
 
                 elif source['id'] is not active_source['id']:
                     if source['activity'] > active_source['activity']:
                         active_source = source
-                
+                        
                 x = active_source['x']
                 y = active_source['y']
                 z = active_source['z']
+                create_json(x, y, z)
                 
-        create_json(x,y,z)
-                
-                
-        
+            else:
+                create_json()
 
-        
     except:
         print("ERROR:JSON LOADS")
+        
 
 def min_len(strs):
     if (len(strs) < 2):
-            remainingTrack = stream
-            return
+        remainingTrack = stream
+        return
+
 
 def remaining(strs):
     for index, string in enumerate(strs):
-            if(index == len(strs)-1):
-                remainingTrack = string
-                return
-            
-            if (string[0] != '{'):
-                string = '{' + string
-            
+        if (index == len(strs)-1):
+            remainingTrack = string
+            return
 
-            if (string[len(string)-2] != '}'):
-                if(string[len(string)-3] != '}'):
-                    string = string + '}'
+        if (string[0] != '{'):
+            string = '{' + string
+
+        if (string[len(string)-2] != '}'):
+            if (string[len(string)-3] != '}'):
+                string = string + '}'
+
 
 def server():
     remainingTrack = ''
@@ -94,7 +95,7 @@ def server():
 
         stream = remainingTrack + data
         strs = stream.split("}\n{")
-        
+
         if (len(strs) < 2):
             remainingTrack = stream
 
@@ -102,16 +103,16 @@ def server():
             if len(string) > 0:
                 if(index == len(strs)-1):
                     remainingTrack = string
-                
+
                 if (string[0] != '{'):
                     string = '{' + string
                 
-
                 if (string[len(string)-2] != '}'):
                     if(string[len(string)-3] != '}'):
                         string = string + '}'
 
-                process(string)
+    process(string)
+
 
 if __name__ == '__main__':
-     server()
+    server()

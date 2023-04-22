@@ -1,0 +1,4 @@
+.env
+.DS_Store
+*.pyc
+src/server/json_data.json
