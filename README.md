@@ -18,6 +18,8 @@ Use `sudo ./install.sh --compat-kernel`
 Make sure to edit the .env file and add fill in the necessary fields.
 #### Socket_server.py
 Start the web socket server: `python socket_server.py`
+`processSSL`: (Sound Source Localization) Computes coordinates for a source every 8ms (DOA) -> More accurate!
+`processSST`: (Sound Source Tracking) Computes coordinates for a source and tracks it
 #### File Transfer
 [More details here](./src/server/filetransfer/README.md)
 ## Architecture

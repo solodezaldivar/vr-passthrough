@@ -61,7 +61,7 @@ def processSSL(msg):
             e = active_source['E']
             create_json(x, y, z)
     
-        elif data['timeStamp'] - last_time_stamp > 300:
+        elif data['timeStamp'] - last_time_stamp > 100:
             print(data['timeStamp'] - last_time_stamp)
             active_source = None
             create_json()
@@ -105,7 +105,7 @@ def processSST(msg):
 def server():
     remainingTrack = ''
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server_socket.bind((HOST,9000))
+    server_socket.bind((HOST,PORT))
     server_socket.listen(5)
 
     print("Listening on %s:%s..." % (HOST, str(PORT)))
