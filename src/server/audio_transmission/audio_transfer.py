@@ -22,6 +22,7 @@ client_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 client_socket.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, BUFF_SIZE)
 host_name = socket.gethostname() # socket.gethostbyname(host_name)
 host_ip = '192.168.137.13'
+
 print(host_ip)
 port = 9699
 message = b'Hello'

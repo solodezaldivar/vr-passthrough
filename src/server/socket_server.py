@@ -7,6 +7,7 @@ load_dotenv()
 
 HOST = "192.168.137.1"
 PORT = 9001
+
 BUFFER_SIZE = 296
 remainingTrack = ''
 stream = ''
@@ -29,12 +30,11 @@ def create_json(x=None, y=None, z=None):
     with open(os.environ.get('PATH_TO_JSON_FILE'), 'w') as outfile:
         json.dump(sounds_dict, outfile)
 
-
 def create_json_with_energy(x=None, y=None, z=None, e=None):
     sounds_dict = {
         "sounds": [
             {
-                "direction": {"x": x, "y": y, "z": z, "e": e},
+                "direction": {"x": x, "y": y, "z": z, "e":e},
                 "type": "VOICE"
             }
         ]
@@ -43,7 +43,6 @@ def create_json_with_energy(x=None, y=None, z=None, e=None):
     print(sounds_dict)
     with open(os.environ.get('PATH_TO_JSON_FILE'), 'w') as outfile:
         json.dump(sounds_dict, outfile)
-
 
 def processSSL(msg):
     global active_source
@@ -61,7 +60,7 @@ def processSSL(msg):
             z = active_source['z']
             e = active_source['E']
             create_json(x, y, z)
-
+    
         elif data['timeStamp'] - last_time_stamp > 100:
             print(data['timeStamp'] - last_time_stamp)
             active_source = None
@@ -71,30 +70,31 @@ def processSSL(msg):
         pass
 
 
+
 def processSST(msg):
     global active_source
     data = ''
     try:
         data = json.loads(msg)
         for source in data['src']:
-
+            
             if source['activity'] > 0.6:
                 if not active_source:
                     if source['id'] != 0:
                         active_source = source
-
+                    
                 elif source['id'] is active_source['id']:
                     active_source = source
 
                 elif source['id'] is not active_source['id']:
                     if source['activity'] > active_source['activity']:
                         active_source = source
-
+                        
                 x = active_source['x']
                 y = active_source['y']
                 z = active_source['z']
                 create_json(x, y, z)
-
+                
             else:
                 active_source = None
                 create_json()
@@ -102,11 +102,10 @@ def processSST(msg):
     except:
         pass
 
-
 def server():
     remainingTrack = ''
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server_socket.bind((HOST, PORT))
+    server_socket.bind((HOST,PORT))
     server_socket.listen(5)
 
     print("Listening on %s:%s..." % (HOST, str(PORT)))
@@ -127,14 +126,14 @@ def server():
 
         for index, string in enumerate(strs):
             if len(string) > 0:
-                if (index == len(strs) - 1):
+                if(index == len(strs)-1):
                     remainingTrack = string
 
                 if (string[0] != '{'):
                     string = '{' + string
-
-                if (string[len(string) - 2] != '}'):
-                    if (string[len(string) - 3] != '}'):
+                
+                if (string[len(string)-2] != '}'):
+                    if(string[len(string)-3] != '}'):
                         string = string + '}'
 
         processSSL(string)
