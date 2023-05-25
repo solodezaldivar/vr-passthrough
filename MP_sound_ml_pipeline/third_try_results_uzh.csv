@@ -1,0 +1,12 @@
+file,elapsed_time,label1,score1,label2,score2,label3,score3
+split_1_Audio_sample_phone,0.2571594715118408,Door,0.2617,Cash register,0.2129,Drawer open or close,0.1565
+split_2_Audio_sample_phone,0.23274898529052734,Speech,0.8306,Snort,0.358,Gasp,0.1223
+split_3_Audio_sample_phone,0.2746288776397705,Speech,0.659,Slam,0.1254,"Inside, small room",0.05856
+split_4_Audio_sample_phone,0.20415353775024414,Speech,0.653,"Inside, small room",0.1458,Door,0.1285
+split_5_Audio_sample_phone,0.26746654510498047,Door,0.1375,Knock,0.112,"Inside, small room",0.03824
+split_6_Audio_sample_phone,0.21548080444335938,Computer keyboard,0.8506,Typing,0.819,Typewriter,0.04788
+split_7_Audio_sample_phone,0.2682032585144043,Computer keyboard,0.5977,Typing,0.53,Clicking,0.09503
+split_8_Audio_sample_phone,0.2159428596496582,Music,0.2769,Zipper (clothing),0.03021,Shuffle,0.02351
+split_9_Audio_sample_phone,0.28070878982543945,Speech,0.2362,Pant,0.2084,Music,0.1909
+split_10_Audio_sample_phone,0.20441389083862305,Speech,0.7393,Music,0.6226,Electronic music,0.1356
+split_11_Audio_sample_phone,0.28564953804016113,Speech,0.594,Music,0.3232,Electronic music,0.0536
