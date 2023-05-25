@@ -15,7 +15,6 @@ string = ''
 active_source = None
 last_time_stamp = 0
 
-
 def create_json(x=None, y=None, z=None):
     sounds_dict = {
         "sounds": [
