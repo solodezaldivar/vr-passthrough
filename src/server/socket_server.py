@@ -5,8 +5,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-HOST = os.environ.get('IP')
-PORT = int(os.environ.get('SSL_PORT'))
+HOST = "192.168.137.1"
+PORT = 9001
 
 BUFFER_SIZE = 296
 remainingTrack = ''
