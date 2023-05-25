@@ -5,8 +5,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-HOST = os.environ.get('IP')
-PORT = os.environ.get('PORT')
+HOST = "192.168.137.1"
+PORT = 9001
 BUFFER_SIZE = 296
 remainingTrack = ''
 stream = ''
