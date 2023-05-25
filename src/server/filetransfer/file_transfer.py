@@ -9,7 +9,7 @@ app = Flask(__name__)
 @app.get("/directionFile/")
 def get_file():
     try:
-        return send_file(os.environ.get('PATH_TO_DIRECTION_JSON_FILE'))
+        return send_file(os.environ.get('COORDINATES_FILE'))
     except Exception as e:
         return str(e)
 
