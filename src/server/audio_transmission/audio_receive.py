@@ -146,8 +146,10 @@ def predict_audio(file_path: str):
 
 # TODO remove clicking sound - my best guess - we need to do smth about the CHUNK size
 def server():
+    HOST = "192.168.137.1"
+    PORT = 9566
     # Create an AST model and download the AudioSet pretrained weights
-
+    audio_preprocessor = AudioPreprocessor()
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server_socket.bind((HOST, PORT))
     server_socket.listen(5)
@@ -156,60 +158,70 @@ def server():
     conn, addr = server_socket.accept()
     print(f'Connected to {addr}')
     data_buffer = b''
+    results_list = []
+
     while True:
         try:
             data = conn.recv(CHUNK)
+            res_dict = predict_audio(data)
+            results_list.append(res_dict)
 
+            # df = pd.DataFrame(results_list)
+            # df.to_csv('first_try_results_uzh_comp.csv', index=False, header=True)
             if not data:
                 break
-            stream.write(data)
+            # stream.write(data)
 
 
         except Exception as e:
             print(e)
             pass
 
-
 if __name__ == '__main__':
-    getAudioDevices()
-    # audioset_mdl_url = 'https://www.dropbox.com/s/cv4knew8mvbrnvq/audioset_0.4593.pth?dl=1'
-    # if os.path.exists('MP_sound_ml_pipeline/ast_package/pretrained_models/audio_mdl.pth') == False:
-    #     wget.download(audioset_mdl_url, out='MP_sound_ml_pipeline/ast_package/pretrained_models/audio_mdl.pth')
+    audioset_mdl_url = 'https://www.dropbox.com/s/cv4knew8mvbrnvq/audioset_0.4593.pth?dl=1'
+    path = os.path.join("C:\\", "Users", "Master Projekt", "Documents", "Github", "vr-passthrough", "MP_sound_ml_pipeline", "ast_package", "pretrained_models", "audio_mdl.pth")
+    if not os.path.exists(path):
+        wget.download(audioset_mdl_url, out=path)
+
+    # Assume each input spectrogram has 1024 time frames
+    input_tdim = 1024
+    checkpoint_path = path
+    # now load the visualization model
+    ast_mdl = ASTModelVis(label_dim=527, input_tdim=input_tdim, imagenet_pretrain=False,
+                          audioset_pretrain=False)
+    print(f'[*INFO] load checkpoint: {checkpoint_path}')
+    checkpoint = torch.load(checkpoint_path, map_location='cuda')
+    audio_model = torch.nn.DataParallel(ast_mdl, device_ids=[0])
+    audio_model.load_state_dict(checkpoint)
+    audio_model = audio_model.to(torch.device("cuda:0"))
+    audio_model.eval()
+
+    # Load the AudioSet label set
+    label_csv = os.path.join("C:\\", "Users", "Master Projekt", "Documents", "Github", "vr-passthrough", "MP_sound_ml_pipeline", "ast_package", "egs", "audioset", "data", "class_labels_indices.csv")
+    labels = load_label(label_csv)
+
+    # Get a sample audio and make feature for predict
+    # change url to play with the script
+    # sample_audio_path = 'https://www.dropbox.com/s/kx8s8irzwj6nbeq/glLQrEijrKg_000300.flac?dl=1'
+
+    # # some other samples
+    # sample_audio_path = 'https://www.dropbox.com/s/0ru6f8tk2x4177g/241829__lewis100011__heavy-door_16Khz.wav?dl=1'
+    # sample_audio_path = 'https://www.dropbox.com/s/omned2muw8cyunf/6jiO0tPLK7U_000090.flac?dl=1'
+
+    # if os.path.exists('ast_package/sample_audios') == False:
+    #     os.mkdir('ast_package/sample_audios')
+    # if os.path.exists('ast_package/sample_audios/sample_audio.flac') == True:
+    #     os.remove('ast_package/sample_audios/sample_audio.flac')
+    # wget.download(sample_audio_path, 'ast_package/sample_audios/sample_audio.flac')
+
+
+     #results_list = []
+     #for a_slice in slice_list:
+    #   res_dict = predict_audio(a_slice)
+     #    results_list.append(res_dict)
     #
-    # # Assume each input spectrogram has 1024 time frames
-    # input_tdim = 1024
-    # checkpoint_path = 'MP_sound_ml_pipeline/ast_package/pretrained_models/audio_mdl.pth'
-    # # now load the visualization model
-    # ast_mdl = ASTModelVis(label_dim=527, input_tdim=input_tdim, imagenet_pretrain=False,
-    #                       audioset_pretrain=False)
-    # print(f'[*INFO] load checkpoint: {checkpoint_path}')
-    # checkpoint = torch.load(checkpoint_path, map_location='cuda')
-    # audio_model = torch.nn.DataParallel(ast_mdl, device_ids=[0])
-    # audio_model.load_state_dict(checkpoint)
-    # audio_model = audio_model.to(torch.device("cuda:0"))
-    # audio_model.eval()
-    #
-    # # Load the AudioSet label set
-    # label_csv = 'MP_sound_pipeline/ast_package/egs/audioset/data/class_labels_indices.csv'  # label and indices for audioset data
-    # labels = load_label(label_csv)
-    #
-    # # Get a sample audio and make feature for predict
-    # # change url to play with the script
-    # # sample_audio_path = 'https://www.dropbox.com/s/kx8s8irzwj6nbeq/glLQrEijrKg_000300.flac?dl=1'
-    #
-    # # # some other samples
-    # # sample_audio_path = 'https://www.dropbox.com/s/0ru6f8tk2x4177g/241829__lewis100011__heavy-door_16Khz.wav?dl=1'
-    # # sample_audio_path = 'https://www.dropbox.com/s/omned2muw8cyunf/6jiO0tPLK7U_000090.flac?dl=1'
-    #
-    # # if os.path.exists('ast_package/sample_audios') == False:
-    # #     os.mkdir('ast_package/sample_audios')
-    # # if os.path.exists('ast_package/sample_audios/sample_audio.flac') == True:
-    # #     os.remove('ast_package/sample_audios/sample_audio.flac')
-    # # wget.download(sample_audio_path, 'ast_package/sample_audios/sample_audio.flac')
-    #
-    # audio_preprocessor = AudioPreprocessor()
-    #
-    # slice_list = audio_preprocessor.librosa_resample_n_split('MP_sound_ml_pipeline/Audio_sample_phone.flac')
+    # df = pd.DataFrame(results_list)
+    # df.to_csv('second_try_results_uzh.csv', index=False, header=True)
     #
     # results_list = []
     # for a_slice in slice_list:
@@ -217,22 +229,6 @@ if __name__ == '__main__':
     #     results_list.append(res_dict)
     #
     # df = pd.DataFrame(results_list)
-    # df.to_csv('first_try_results_uzh_comp.csv', index=False, header=True)
-    #
-    #  #results_list = []
-    #  #for a_slice in slice_list:
-    # #   res_dict = predict_audio(a_slice)
-    #  #    results_list.append(res_dict)
-    # #
-    # # df = pd.DataFrame(results_list)
-    # # df.to_csv('second_try_results_uzh.csv', index=False, header=True)
-    # #
-    # # results_list = []
-    # # for a_slice in slice_list:
-    # #     res_dict = predict_audio(a_slice)
-    # #     results_list.append(res_dict)
-    # #
-    # # df = pd.DataFrame(results_list)
-    # # df.to_csv('third_try_results_uzh.csv', index=False, header=True)
-    #
+    # df.to_csv('third_try_results_uzh.csv', index=False, header=True)
+
     server()
