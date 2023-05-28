@@ -17,7 +17,7 @@ def get_file():
 @app.get("/objectsFile/")
 def get_objects():
     try:
-        return send_file(os.environ.get('COORDINATES_FILE'))
+        return send_file(os.environ.get('PATH_TO_CAMERA_JSON_FILE'))
     except Exception as e:
         return str(e)
 

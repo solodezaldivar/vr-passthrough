@@ -5,7 +5,7 @@ import json
 model = YOLO("yolov8x.pt")
 
 
-results = model(source = "0", show = False, device = torch.device("cuda:0") ,stream = True, verbose = False)
+results = model(source = "0", show = False, device = torch.device("cpu") ,stream = True, verbose = False)
 for result in results:
     boxes = result.boxes
     lables = {"content": []}
