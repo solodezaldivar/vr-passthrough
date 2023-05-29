@@ -17,6 +17,11 @@ import pandas as pd
 
 import pyaudio
 from dotenv import load_dotenv
+# new package needs to be installed to the env -> pip install miniaudio
+from miniaudio import SampleFormat, decode, DecodeError, ffi, lib
+import resampy
+import array
+
 
 load_dotenv()
 
@@ -90,10 +95,57 @@ class ASTModelVis(ASTModel):
             x = blk(x)
         return att_list
 
+# added function for audio decoding
+def mp3_read_f32(data: bytes) -> array:
+    '''Reads and decodes the whole mp3 audio data. Resulting sample format is 32 bits float.'''
+    config = ffi.new('drmp3_config *')
+    num_frames = ffi.new('drmp3_uint64 *')
+    memory = lib.drmp3_open_memory_and_read_pcm_frames_f32(data, len(data), config, num_frames, ffi.NULL)
+    if not memory:
+        raise DecodeError('cannot load/decode data')
+    try:
+        samples = array.array('f')
+        buffer = ffi.buffer(memory, num_frames[0] * config.channels * 4)
+        samples.frombytes(buffer)
+        return samples, config.sampleRate, config.channels
+    finally:
+        lib.drmp3_free(memory, ffi.NULL)
+        ffi.release(num_frames)
 
 def make_features(wav_name, mel_bins, target_length=1024):
-    waveform, sr = torchaudio.load(wav_name)
-    assert sr == 16000, 'input audio sampling rate must be 16kHz'
+
+    ## may also work directly. torchaudio.load() should be able to deal with file-like objects
+    ## not sure if a bytes iterable is exactly a file-like object but we need to try.
+    #waveform, sr = torchaudio.load(wav_name)
+    #assert sr == 16000, 'input audio sampling rate must be 16kHz'
+
+    ## using direct byte stream of audio data
+    ## direct usage of the decode() function maylead to memory issues..
+    #decoded_audio = decode(wav_name, nchannels=1, sample_rate=16000, output_format=SampleFormat.SIGNED32)
+    #waveform = torch.FloatTensor(decoded_audio.samples)
+    #waveform /= (1 << 31)
+
+    # solution that should fix the memory issue using different functions and re-implementations:
+    decoded_audio, sr, channels = mp3_read_f32(wav_name)
+
+    assert channels == 1
+
+    # TODO handle channels > 1 cases
+
+    decoded_audio = np.asarray(decoded_audio)
+
+    # Resample to 16000
+    decoded_audio = resampy.resample(decoded_audio, sr, 16000, axis=0, filter='kaiser_best')
+
+    waveform = torch.FloatTensor(decoded_audio)
+
+    # Or resample with torchaudio's sinc_interpolation
+    # resampler = torchaudio.transforms.Resample(sample_rate, 16000)
+    # decoded_audio = resampler(decoded_audio)
+
+    # Scale down to [-1:1] Resampling somehow scales up.
+    waveform /= decoded_audio.abs().max()
+    ##-----------------------------------------------------------------------------------
 
     fbank = torchaudio.compliance.kaldi.fbank(
         waveform, htk_compat=True, sample_frequency=sr, use_energy=False,
@@ -112,7 +164,7 @@ def make_features(wav_name, mel_bins, target_length=1024):
     return fbank
 
 
-def predict_audio(file_path: str):
+def predict_audio(file_path):
     feats = make_features(file_path, mel_bins=128)  # shape(1024, 128)
     feats_data = feats.expand(1, input_tdim, 128)  # reshape the feature
     feats_data = feats_data.to(torch.device("cuda:0"))
