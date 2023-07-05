@@ -9,11 +9,15 @@ import torch
 import time
 import torchaudio
 import numpy as np
+import io
 from torch.cuda.amp import autocast
+sys.path.append('C:/Users/Master Projekt/Documents/GitHub/vr-passthrough')
+print(sys.path)
 from MP_sound_ml_pipeline.ast_package.src.models import ASTModel
 from MP_sound_ml_pipeline.audio_preprocess import AudioPreprocessor
 import csv
 import pandas as pd
+import noisereduce
 
 import pyaudio
 from dotenv import load_dotenv
@@ -21,26 +25,28 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
-HOST = os.environ.get('IP')
-PORT = os.environ.get('AUDIO_TRANSPORT_PORT')
+# HOST = os.environ.get('IP')
+# PORT = os.environ.get('AUDIO_TRANSPORT_PORT')
+HOST = "192.168.137.1"
+PORT = 9956
 FORMAT = pyaudio.paInt16
 CHANNELS = 2
-CHUNK = 1024
+CHUNK = 16000
 RATE = 16000
 os.environ['TORCH_HOME'] = 'MP_sound_ml_pipeline/ast_package/pretrained_models'
 
 
 def getAudioDevices():
-    audio = pyaudio.PyAudio()
     print(audio.get_default_output_device_info())
-#     for i in range(audio.get_device_count()):
-#         dev = audio.get_device_info_by_index(i)
-#         print((i, dev['name'], dev['maxOutputChannels'], dev['maxInputChannels']))
-# stream = audio.open(format=FORMAT,
-#                     channels=2,
-#                     rate=RATE,
-#                     output=True,
-#                     frames_per_buffer=CHUNK)
+    for i in range(audio.get_device_count()):
+        dev = audio.get_device_info_by_index(i)
+        print((i, dev['name'], dev['maxOutputChannels'], dev['maxInputChannels']))
+audio = pyaudio.PyAudio()
+stream = audio.open(format=FORMAT,
+                    channels=2,
+                    rate=RATE,
+                    output=True,
+                    frames_per_buffer=CHUNK)
 
 
 def load_label(label_csv):
@@ -91,8 +97,12 @@ class ASTModelVis(ASTModel):
         return att_list
 
 
-def make_features(wav_name, mel_bins, target_length=1024):
-    waveform, sr = torchaudio.load(wav_name)
+def make_features(data, mel_bins, target_length=1024):
+    waveform = torch.Tensor(np.frombuffer(data, dtype=np.int16))
+    waveform = waveform.unsqueeze(0)  # Add a batch dimension
+   
+    sr = 16000
+    
     assert sr == 16000, 'input audio sampling rate must be 16kHz'
 
     fbank = torchaudio.compliance.kaldi.fbank(
@@ -145,12 +155,56 @@ def predict_audio(file_path: str):
     return result_dict
 
 
+
+def predict_audio_chunk(chunk):
+    feats = make_features(chunk, mel_bins=128)  # shape(1024, 128)
+    feats_data = feats.expand(1, input_tdim, 128)  # reshape the feature
+    feats_data = feats_data.to(torch.device("cuda:0"))
+    # do some masking of the input
+    # feats_data[:, :512, :] = 0.
+
+    # Make the prediction
+    # start = time.time()
+    with torch.no_grad():
+        with autocast():
+            output = audio_model.forward(feats_data)
+            output = torch.sigmoid(output)
+    result_output = output.data.cpu().numpy()[0]
+    sorted_indexes = np.argsort(result_output)[::-1]
+    # end = time.time()
+
+    # Print audio tagging top probabilities
+    print('Predice results:')
+    # print(result_output)
+    for k in range(5):
+        print('- {}: {:.4f}'.format(np.array(labels)[sorted_indexes[k]], result_output[sorted_indexes[k]]))
+    # print('- {}: {:.4f}'.format(np.array(labels)[sorted_indexes[0]], result_output[sorted_indexes[0]]))
+    # elapsed_time = end - start
+
+    # result_dict = {'file': file_path.split('/')[-1].replace('.flac', ''), 'elapsed_time': elapsed_time}
+
+    # for k in range(3):
+    #     result_dict['label' + str(k + 1)] = np.array(labels)[sorted_indexes[k]]
+    #     result_dict['score' + str(k + 1)] = result_output[sorted_indexes[k]]
+
+    return result_output
+
+def apply_fade_effects(audio_data, sample_rate=16000, fade_duration=0.05):
+    fade_samples = int(fade_duration * sample_rate)
+    fade_in = np.linspace(0.0, 1.0, fade_samples)
+    fade_out = np.linspace(1.0, 0.0, fade_samples)
+
+    # Apply fade-in and fade-out effects to the audio data
+    audio_data[:fade_samples] *= fade_in
+    audio_data[-fade_samples:] *= fade_out
+
+    return audio_data
+
 # TODO remove clicking sound - my best guess - we need to do smth about the CHUNK size
 def server():
-    HOST = "192.168.137.1"
-    PORT = 9566
+    print("start")
     # Create an AST model and download the AudioSet pretrained weights
-    audio_preprocessor = AudioPreprocessor()
+    # audio_preprocessor = AudioPreprocessor()
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server_socket.bind((HOST, PORT))
     server_socket.listen(5)
@@ -160,18 +214,63 @@ def server():
     print(f'Connected to {addr}')
     data_buffer = b''
     results_list = []
+    cross_fade = 100
+    prev_chunk = None
+    # while True:
+    #     try:
+    #         data = conn.recv(CHUNK)
+    #         if not data:
+    #             break
 
+    #         # Convert the received data to numpy array
+    #         audio_chunk = np.frombuffer(data, dtype=np.int16)
+
+    #         # Apply fade-in effect
+    #         fade_in_samples = int(0.05 * 16000)  # Number of samples for fade-in effect
+    #         fade_in = np.linspace(0.0, 1.0, fade_in_samples)
+    #         audio_chunk[:fade_in_samples] = np.multiply(audio_chunk[:fade_in_samples], fade_in)
+
+    #         # Apply fade-out effect
+    #         fade_out_samples = int(0.05 * 16000)  # Number of samples for fade-out effect
+    #         fade_out = np.linspace(1.0, 0.0, fade_out_samples)
+    #         audio_chunk[-fade_out_samples:] = np.multiply(audio_chunk[-fade_out_samples:], fade_out)
+
+    #         # Concatenate the previous chunk and current chunk with cross-fading
+    #         if prev_chunk is not None:
+    #             cross_fade_samples = min(fade_out_samples, fade_in_samples)
+    #             cross_chunk = np.zeros(cross_fade_samples, dtype=np.int16)
+    #             for i in range(cross_fade_samples):
+    #                 weight_c = float(i) / cross_fade_samples
+    #                 weight_p = 1.0 - weight_c
+    #                 cross_chunk[i] = int(weight_p * prev_chunk[-cross_fade_samples+i] + weight_c * audio_chunk[i])
+    #             stream_data = np.concatenate((prev_chunk[:-cross_fade_samples], cross_chunk, audio_chunk[cross_fade_samples:]))
+    #         else:
+    #             stream_data = audio_chunk
+
+    #         # Update the previous chunk
+    #         prev_chunk = audio_chunk
+
+    #         # Transmit the stream data over the socket
+    #         stream.write(stream_data.tobytes()) 
+
+
+    #     except Exception as e:
+    #         print(e)
+    #         pass
+    buff = []
     while True:
         try:
             data = conn.recv(CHUNK)
-            res_dict = predict_audio(data)
-            results_list.append(res_dict)
+            # Convert audio data to numpy.float64
+            # results_list.append(res_dict)
+            if not data:
+                break
+            stream.write(data)
+            res_dict = predict_audio_chunk(data)
 
             # df = pd.DataFrame(results_list)
             # df.to_csv('first_try_results_uzh_comp.csv', index=False, header=True)
-            if not data:
-                break
-            # stream.write(data)
+            
 
 
         except Exception as e:
@@ -184,10 +283,10 @@ if __name__ == '__main__':
     if not os.path.exists(path):
         wget.download(audioset_mdl_url, out=path)
 
-    # Assume each input spectrogram has 1024 time frames
+#     # Assume each input spectrogram has 1024 time frames
     input_tdim = 1024
     checkpoint_path = path
-    # now load the visualization model
+#     # now load the visualization model
     ast_mdl = ASTModelVis(label_dim=527, input_tdim=input_tdim, imagenet_pretrain=False,
                           audioset_pretrain=False)
     print(f'[*INFO] load checkpoint: {checkpoint_path}')
@@ -197,7 +296,7 @@ if __name__ == '__main__':
     audio_model = audio_model.to(torch.device("cuda:0"))
     audio_model.eval()
 
-    # Load the AudioSet label set
+#     # Load the AudioSet label set
     label_csv = os.path.join("C:\\", "Users", "Master Projekt", "Documents", "Github", "vr-passthrough", "MP_sound_ml_pipeline", "ast_package", "egs", "audioset", "data", "class_labels_indices.csv")
     labels = load_label(label_csv)
 
