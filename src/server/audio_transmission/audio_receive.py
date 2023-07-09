@@ -17,7 +17,8 @@ from MP_sound_ml_pipeline.ast_package.src.models import ASTModel
 from MP_sound_ml_pipeline.audio_preprocess import AudioPreprocessor
 import csv
 import pandas as pd
-import noisereduce
+import signal
+from threading import Thread
 
 import pyaudio
 from dotenv import load_dotenv
@@ -31,7 +32,7 @@ HOST = "192.168.137.1"
 PORT = 9956
 FORMAT = pyaudio.paInt16
 CHANNELS = 2
-CHUNK = 16000
+CHUNK = 1024
 RATE = 16000
 os.environ['TORCH_HOME'] = 'MP_sound_ml_pipeline/ast_package/pretrained_models'
 
@@ -41,6 +42,8 @@ def getAudioDevices():
     for i in range(audio.get_device_count()):
         dev = audio.get_device_info_by_index(i)
         print((i, dev['name'], dev['maxOutputChannels'], dev['maxInputChannels']))
+
+
 audio = pyaudio.PyAudio()
 stream = audio.open(format=FORMAT,
                     channels=2,
@@ -155,23 +158,42 @@ def predict_audio(file_path: str):
     return result_dict
 
 
+def write_to_json(prediction):
+    with open('../filetransfer/coordintes.json', 'r') as file:
+        json_file = json.load(file)
+    json_file['sounds'][0]['type'] = prediction
+    print('Prediction is: ', json_file['sounds'][0]['type'])
+    
+    # Save back to the file
+    with open('../filetransfer/coordintes.json', 'w') as file:
+        json.dump(json_file, file)
 
-def predict_audio_chunk(chunk):
-    feats = make_features(chunk, mel_bins=128)  # shape(1024, 128)
+def predict_audio():
+    BUFFER = 10
+    while True:
+        try:
+            if len(frames) == BUFFER:
+                while True:
+                    prediction = predict_audio_chunk(frames.pop(0))
+            
+            write_to_json(prediction)
+        except:
+            continue
+
+
+# TODO: Joel das mussch zum laufe bringe dann sötts gah
+def predict_audio_chunk(data):
+
+    feats = make_features(data, mel_bins=128)  # shape(1024, 128)
     feats_data = feats.expand(1, input_tdim, 128)  # reshape the feature
     feats_data = feats_data.to(torch.device("cuda:0"))
-    # do some masking of the input
-    # feats_data[:, :512, :] = 0.
-
-    # Make the prediction
-    # start = time.time()
+    
     with torch.no_grad():
         with autocast():
             output = audio_model.forward(feats_data)
             output = torch.sigmoid(output)
     result_output = output.data.cpu().numpy()[0]
     sorted_indexes = np.argsort(result_output)[::-1]
-    # end = time.time()
 
     # Print audio tagging top probabilities
     print('Predice results:')
@@ -187,6 +209,7 @@ def predict_audio_chunk(chunk):
     #     result_dict['label' + str(k + 1)] = np.array(labels)[sorted_indexes[k]]
     #     result_dict['score' + str(k + 1)] = result_output[sorted_indexes[k]]
 
+    # TODO: return obersti prediction
     return result_output
 
 def apply_fade_effects(audio_data, sample_rate=16000, fade_duration=0.05):
@@ -200,82 +223,27 @@ def apply_fade_effects(audio_data, sample_rate=16000, fade_duration=0.05):
 
     return audio_data
 
-# TODO remove clicking sound - my best guess - we need to do smth about the CHUNK size
-def server():
-    print("start")
-    # Create an AST model and download the AudioSet pretrained weights
-    # audio_preprocessor = AudioPreprocessor()
-    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server_socket.bind((HOST, PORT))
-    server_socket.listen(5)
+frames = []
+
+def udpStream(CHUNK):
+
+    udp = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    udp.bind((HOST, PORT))
 
     print("Listening on %s:%s..." % (HOST, str(PORT)))
-    conn, addr = server_socket.accept()
-    print(f'Connected to {addr}')
-    data_buffer = b''
-    results_list = []
-    cross_fade = 100
-    prev_chunk = None
-    # while True:
-    #     try:
-    #         data = conn.recv(CHUNK)
-    #         if not data:
-    #             break
 
-    #         # Convert the received data to numpy array
-    #         audio_chunk = np.frombuffer(data, dtype=np.int16)
-
-    #         # Apply fade-in effect
-    #         fade_in_samples = int(0.05 * 16000)  # Number of samples for fade-in effect
-    #         fade_in = np.linspace(0.0, 1.0, fade_in_samples)
-    #         audio_chunk[:fade_in_samples] = np.multiply(audio_chunk[:fade_in_samples], fade_in)
-
-    #         # Apply fade-out effect
-    #         fade_out_samples = int(0.05 * 16000)  # Number of samples for fade-out effect
-    #         fade_out = np.linspace(1.0, 0.0, fade_out_samples)
-    #         audio_chunk[-fade_out_samples:] = np.multiply(audio_chunk[-fade_out_samples:], fade_out)
-
-    #         # Concatenate the previous chunk and current chunk with cross-fading
-    #         if prev_chunk is not None:
-    #             cross_fade_samples = min(fade_out_samples, fade_in_samples)
-    #             cross_chunk = np.zeros(cross_fade_samples, dtype=np.int16)
-    #             for i in range(cross_fade_samples):
-    #                 weight_c = float(i) / cross_fade_samples
-    #                 weight_p = 1.0 - weight_c
-    #                 cross_chunk[i] = int(weight_p * prev_chunk[-cross_fade_samples+i] + weight_c * audio_chunk[i])
-    #             stream_data = np.concatenate((prev_chunk[:-cross_fade_samples], cross_chunk, audio_chunk[cross_fade_samples:]))
-    #         else:
-    #             stream_data = audio_chunk
-
-    #         # Update the previous chunk
-    #         prev_chunk = audio_chunk
-
-    #         # Transmit the stream data over the socket
-    #         stream.write(stream_data.tobytes()) 
-
-
-    #     except Exception as e:
-    #         print(e)
-    #         pass
-    buff = []
     while True:
-        try:
-            data = conn.recv(CHUNK)
-            # Convert audio data to numpy.float64
-            # results_list.append(res_dict)
-            if not data:
-                break
-            stream.write(data)
-            res_dict = predict_audio_chunk(data)
+        soundData, addr = udp.recvfrom(CHUNK * CHANNELS * 2)
+        frames.append(soundData)
 
-            # df = pd.DataFrame(results_list)
-            # df.to_csv('first_try_results_uzh_comp.csv', index=False, header=True)
-            
+    udp.close()
 
 
-        except Exception as e:
-            print(e)
-            pass
+def signal_handler(signal, frame):
+    print("Exiting...")
+    sys.exit(0)
+
+
 
 if __name__ == '__main__':
     audioset_mdl_url = 'https://www.dropbox.com/s/cv4knew8mvbrnvq/audioset_0.4593.pth?dl=1'
@@ -331,4 +299,16 @@ if __name__ == '__main__':
     # df = pd.DataFrame(results_list)
     # df.to_csv('third_try_results_uzh.csv', index=False, header=True)
 
-    server()
+    Ts = Thread(target=udpStream, args=(CHUNK,))
+    Tp = Thread(target=predict_audio, args=(stream, CHUNK,))
+    Ts.daemon = True
+    Tp.daemon = True
+   
+    def run_program():
+        Ts.start()
+        Tp.start()
+        while True:
+            time.sleep(1)
+
+    signal.signal(signal.SIGINT, signal_handler)
+    run_program()
